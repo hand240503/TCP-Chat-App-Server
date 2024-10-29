@@ -22,11 +22,11 @@ public class DBConnect {
         try {
             Class.forName("com.mysql.cj.jdbc.Driver");
             connection = DriverManager.getConnection(URL, USER, PASSWORD);
-            System.out.println("Kết nối đến cơ sở dữ liệu thành công.");
+            log("DB_CONNECTION_SUCCESS", "Kết nối đến cơ sở dữ liệu thành công.");
         } catch (SQLException e) {
-            System.out.println("Lỗi kết nối đến cơ sở dữ liệu: " + e.getMessage());
+            log("DB_CONNECTION_ERROR", "Lỗi kết nối đến cơ sở dữ liệu: " + e.getMessage());
         } catch (ClassNotFoundException e) {
-            System.out.println("Driver MySQL không được tìm thấy: " + e.getMessage());
+            log("DB_DRIVER_ERROR", "Driver MySQL không được tìm thấy: " + e.getMessage());
         }
     }
 
@@ -38,9 +38,9 @@ public class DBConnect {
         if (connection != null) {
             try {
                 connection.close();
-                System.out.println("Đã đóng kết nối đến cơ sở dữ liệu.");
+                log("DB_CONNECTION_CLOSE", "Đã đóng kết nối đến cơ sở dữ liệu.");
             } catch (SQLException e) {
-                System.out.println("Lỗi khi đóng kết nối: " + e.getMessage());
+                log("DB_CLOSE_CONNECTION_ERROR", "Lỗi khi đóng kết nối: " + e.getMessage());
             }
         }
     }
@@ -52,16 +52,17 @@ public class DBConnect {
             statement.setString(2, password);
             ResultSet resultSet = statement.executeQuery();
             if (resultSet.next()) {
+                log("USER_LOGIN", "Người dùng " + username + " đã đăng nhập thành công.");
                 return resultSet.getInt(1) > 0;
             }
         } catch (SQLException e) {
-            System.out.println("Lỗi xác thực người dùng: " + e.getMessage());
+            log("LOGIN_ERROR", "Lỗi xác thực người dùng: " + e.getMessage());
         }
         return false;
     }
 
     public String getByUsername(String username) {
-        String query = "SELECT id, username FROM users WHERE username = ?";
+        String query = "SELECT id, username, info03 FROM users WHERE username = ?";
         String userJson = null;
 
         try (PreparedStatement statement = connection.prepareStatement(query)) {
@@ -71,12 +72,36 @@ public class DBConnect {
             if (resultSet.next()) {
                 int id = resultSet.getInt("id");
                 String userName = resultSet.getString("username");
-                User user = new User(id, userName, null, null);
+                String avatar = resultSet.getString("info03");
+                User user = new User(id, userName, null, avatar);
                 userJson = gson.toJson(user);
+                log("USER_INFO_FETCH", "Thông tin người dùng cho " + username + " đã được lấy thành công.");
             }
         } catch (SQLException e) {
-            System.out.println("Lỗi lấy thông tin người dùng: " + e.getMessage());
+            log("FETCH_USER_INFO_ERROR", "Lỗi lấy thông tin người dùng: " + e.getMessage());
         }
         return userJson;
+    }
+
+    public boolean register(String username, String password, String info01) {
+        String sql = "INSERT INTO users (username, password, info01, date_01) VALUES (?, ?, ?, NOW())";
+
+        try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
+            pstmt.setString(1, username);
+            pstmt.setString(2, password);
+            pstmt.setString(3, info01);
+            int rowsAffected = pstmt.executeUpdate();
+            log("USER_REGISTER", "Người dùng " + username + " đã đăng ký thành công.");
+            return rowsAffected > 0;
+        } catch (SQLException e) {
+            log("REGISTER_ERROR", "Lỗi khi đăng ký người dùng: " + e.getMessage());
+            return false;
+        }
+    }
+
+    private void log(String code, String msg) {
+        String timestamp = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new java.util.Date());
+        String logEntry = String.format("[%s] CODE: %s, MESSAGE: %s", timestamp, code, msg);
+        System.out.println(logEntry);
     }
 }

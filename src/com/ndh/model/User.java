@@ -4,14 +4,14 @@ public class User {
     private int id;           // ID của người dùng
     private String username;  // Tên đăng nhập
     private String password;  // Mật khẩu (nên mã hóa khi lưu trữ)
-    private String email;     // Email của người dùng (nếu cần)
+    private String avatar;     // Email của người dùng (nếu cần)
 
     // Constructor
-    public User(int id, String username, String password, String email) {
+    public User(int id, String username, String password, String avatar) {
         this.id = id;
         this.username = username;
         this.password = password;
-        this.email = email;
+        this.avatar = avatar;
     }
 
     // Getter và Setter cho ID
@@ -41,22 +41,13 @@ public class User {
         this.password = password;
     }
 
-    // Getter và Setter cho email
-    public String getEmail() {
-        return email;
-    }
+	public String getAvatar() {
+		return avatar;
+	}
 
-    public void setEmail(String email) {
-        this.email = email;
-    }
+	public void setAvatar(String avatar) {
+		this.avatar = avatar;
+	}
 
-    // Phương thức để hiển thị thông tin người dùng (tùy chọn)
-    @Override
-    public String toString() {
-        return "User{" +
-                "id=" + id +
-                ", username='" + username + '\'' +
-                ", email='" + email + '\'' +
-                '}';
-    }
+
 }
