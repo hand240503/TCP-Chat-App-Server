@@ -127,6 +127,31 @@ public class DBConnect {
 		return gson.toJson(lst);
 	}
 
+	public List<User> getListUserAsList(int id) {
+		List<User> lst = new ArrayList<>();
+
+		String sql = "SELECT * FROM users u WHERE u.id != ?";
+		try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
+			pstmt.setInt(1, id);
+
+			try (ResultSet rs = pstmt.executeQuery()) {
+				while (rs.next()) {
+					User user = new User();
+					user.setId(rs.getInt("id"));
+					user.setUsername(rs.getString("username"));
+					user.setInfo01(rs.getString("info01"));
+					user.setAvatar(rs.getString("info03"));
+
+					lst.add(user);
+				}
+			}
+		} catch (SQLException e) {
+			log("FETCH_USER_LIST_ERROR", "Lỗi lấy danh sách người dùng: " + e.getMessage());
+		}
+
+		return lst;
+	}
+
 	private void log(String code, String msg) {
 		String timestamp = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new java.util.Date());
 		String logEntry = String.format("[%s] CODE: %s, MESSAGE: %s", timestamp, code, msg);
