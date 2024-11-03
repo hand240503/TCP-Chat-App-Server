@@ -152,6 +152,14 @@ class ServerHandler implements Runnable {
 					Message messageAsyn = gson.fromJson(msgFileObjectASYN, Message.class);
 					loadFileToClientAsyn(messageAsyn.getInfo01());
 					break;
+				case "GET-FILE":
+				    String dataJsonString = json.get("data").getAsString();
+				    JsonObject dataJson = JsonParser.parseString(dataJsonString).getAsJsonObject();
+
+				    String filename = dataJson.get("filename").getAsString();
+					String filePath = "files\\" + filename;
+					sendFileToClient(filePath);
+					break;
 				default:
 					sendMessage("INVALID_COMMAND", "Lệnh không hợp lệ.");
 					break;
@@ -338,6 +346,34 @@ class ServerHandler implements Runnable {
 		fileInfoJson.addProperty("fileSize", file.length());
 		fileInfoJson.addProperty("fileDes", mes);
 		sendMessage("MESSAGE-FILE", fileInfoJson);
+		try (FileInputStream fileInputStream = new FileInputStream(file)) {
+			byte[] buffer = new byte[4096];
+			int bytesRead;
+			long totalBytesSent = 0;
+
+			while ((bytesRead = fileInputStream.read(buffer)) != -1) {
+				dataOut.write(buffer, 0, bytesRead);
+				totalBytesSent += bytesRead;
+			}
+			dataOut.flush();
+
+		} catch (IOException e) {
+			log("ERROR", "Lỗi khi gửi file: " + e.getMessage());
+		}
+	}
+
+	private void sendFileToClient(String filePath) {
+		File file = new File(filePath);
+		if (!file.exists()) {
+			sendMessage("FILE_NOT_FOUND", "File không tồn tại.");
+			log("FILE_NOT_FOUND", "File không tồn tại: " + filePath);
+			return;
+		}
+
+		JsonObject fileInfoJson = new JsonObject();
+		fileInfoJson.addProperty("fileName", file.getName());
+		fileInfoJson.addProperty("fileSize", file.length());
+		sendMessage("RES-FILE", fileInfoJson);
 		try (FileInputStream fileInputStream = new FileInputStream(file)) {
 			byte[] buffer = new byte[4096];
 			int bytesRead;
