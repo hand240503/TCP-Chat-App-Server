@@ -1,12 +1,12 @@
 package com.ndh.model;
 
 public class User {
-	private int id; // ID của người dùng
-	private String username; // Tên đăng nhập
-	private String password; // Mật khẩu (nên mã hóa khi lưu trữ)
+	private int id;
+	private String username; 
+	private String password;
 	private String info01;
 	private String info02;
-	private String avatar; // Email của người dùng (nếu cần)
+	private String avatar;
 	private boolean isOnline;
 
 	// Constructor

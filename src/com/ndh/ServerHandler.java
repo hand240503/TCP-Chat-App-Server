@@ -4,15 +4,20 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.net.Socket;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import com.ndh.model.Conversation;
+import com.ndh.model.Message;
+import com.ndh.model.SendMessageRequest;
 import com.ndh.model.User;
 import com.ndh.request.Request;
 
@@ -50,11 +55,23 @@ class ServerHandler implements Runnable {
 		return usernameToHandlers.containsKey(username) && !usernameToHandlers.get(username).isEmpty();
 	}
 
+//	public static List<String> getConnectedClients() {
+//		List<String> connectedClients = new ArrayList<>();
+//		System.out.println(clientHandlers.size());
+//		for (ServerHandler handler : clientHandlers) {
+//			if (handler.getClientSocket() != null && !handler.getClientSocket().isClosed()) {
+//				String clientInfo = "Client " + handler.getClientSocket().getInetAddress() + ":"
+//						+ handler.getClientSocket().getPort();
+//				connectedClients.add(clientInfo);
+//			}
+//		}
+//		return connectedClients;
+//	}
+
 	@Override
 	public void run() {
 		try {
 			while (true) {
-				printConnectedUsers();
 				String inputLine = dataIn.readUTF();
 				log("RECEIVE", "Nhận từ client: " + inputLine);
 				handleCommand(inputLine);
@@ -72,6 +89,7 @@ class ServerHandler implements Runnable {
 			log("CLOSE_REQUEST", "Nhận yêu cầu đóng kết nối từ client: " + clientSocket.getInetAddress() + ":"
 					+ clientSocket.getPort());
 			sendMessage("CLOSE_ACK", "Kết nối sẽ được đóng.");
+			closeConnection();
 		} else {
 			try {
 				JsonObject json = JsonParser.parseString(inputLine).getAsJsonObject();
@@ -83,18 +101,56 @@ class ServerHandler implements Runnable {
 					handleLogin(json);
 					break;
 				case "MESSAGE":
-					String message = json.get("data").getAsString();
-					log("MESSAGE_RECEIVED", "Tin nhắn nhận được: " + message);
+					JsonObject dataObject = json.getAsJsonObject("data");
+					SendMessageRequest msg = gson.fromJson(dataObject, SendMessageRequest.class);
+					User userSender = msg.getUserSender();
+					User userReceive = msg.getUserReceive();
+					log("MESSAGE_RECEIVED", "Tin nhắn nhận được: " + msg);
+					String mess = msg.getMessageText();
+					dbConnect.insertMessage(msg.getConversation().getId(), userSender.getId(), 1, mess, null);
+					if (isOnline(userSender.getUsername())) {
+						List<ServerHandler> senderHandlers = usernameToHandlers.get(userSender.getUsername());
+
+						for (ServerHandler handler : senderHandlers) {
+							if (handler != this) {
+								handler.sendMessage("MESSAGE", msg);
+							}
+						}
+					}
+
+					if (isOnline(userReceive.getUsername())) {
+						List<ServerHandler> receiverHandlers = usernameToHandlers.get(userReceive.getUsername());
+						for (ServerHandler handler : receiverHandlers) {
+							handler.sendMessage("MESSAGE", msg);
+						}
+					}
 					break;
 				case "ALL":
-					message = json.get("data").getAsString();
-					broadcastMessage("ALL", message);
+
 					break;
-				case "FILE":
-//                        sendAvatarToClient("");
+				case "MES-FILE":
+					JsonObject userReceiveObject = json.getAsJsonObject("data");
+					SendMessageRequest msgRequest = gson.fromJson(userReceiveObject, SendMessageRequest.class);
+					handleFileTransfer(msgRequest);
 					break;
 				case "REGISTER":
 					handleRegister(json);
+					break;
+
+				case "GETGROUP2USER":
+					JsonObject msgObject = json.getAsJsonObject("data");
+					SendMessageRequest msgReq = gson.fromJson(msgObject, SendMessageRequest.class);
+					handleGetGroupTwoUser(msgReq);
+					break;
+				case "GET-MES-FILE":
+					JsonObject msgFileObject = json.getAsJsonObject("data");
+					Message message = gson.fromJson(msgFileObject, Message.class);
+					loadImageFileToClient(message.getInfo01(), message.getMessage());
+					break;
+				case "GET-MES-FILE-ASYN":
+					JsonObject msgFileObjectASYN = json.getAsJsonObject("data");
+					Message messageAsyn = gson.fromJson(msgFileObjectASYN, Message.class);
+					loadFileToClientAsyn(messageAsyn.getInfo01());
 					break;
 				default:
 					sendMessage("INVALID_COMMAND", "Lệnh không hợp lệ.");
@@ -103,17 +159,6 @@ class ServerHandler implements Runnable {
 			} catch (Exception e) {
 				sendMessage("INVALID_JSON", "Định dạng JSON không hợp lệ.");
 				log("ERROR", "Lỗi xử lý lệnh: " + e.getMessage());
-			}
-		}
-	}
-
-	public void printConnectedUsers() {
-		if (usernameToHandlers.isEmpty()) {
-			System.out.println("Không có người dùng nào đang kết nối đến server.");
-		} else {
-			System.out.println("Danh sách người dùng đang kết nối đến server:");
-			for (String username : usernameToHandlers.keySet()) {
-				System.out.println(" - " + username);
 			}
 		}
 	}
@@ -128,7 +173,6 @@ class ServerHandler implements Runnable {
 				String userJson = dbConnect.getByUsername(username);
 				currentUser = gson.fromJson(userJson, User.class);
 
-				// Gửi thông tin người dùng và avatar
 				sendMessage("USER_INFO", userJson);
 				sendAvatarToClient(currentUser.getAvatar(), currentUser.getId());
 
@@ -144,7 +188,7 @@ class ServerHandler implements Runnable {
 
 				addClient(username, this);
 				notifyUserIsOnline(currentUser.getUsername());
-				// Gửi thông báo đăng nhập thành công
+
 				sendMessage("LOGIN_SUCCESS", null);
 				log("LOGIN_SUCCESS", "Đăng nhập thành công cho người dùng: " + username);
 			} else {
@@ -193,7 +237,6 @@ class ServerHandler implements Runnable {
 		request.setCode(code);
 		request.setData(data);
 		String jsonResponse = gson.toJson(request);
-
 		try {
 			dataOut.writeUTF(jsonResponse);
 			dataOut.flush();
@@ -203,8 +246,15 @@ class ServerHandler implements Runnable {
 		}
 	}
 
-	public Socket getClientSocket() {
-		return this.clientSocket;
+	public synchronized void printConnectedUsers() {
+		if (usernameToHandlers.isEmpty()) {
+			System.out.println("Không có người dùng nào đang kết nối đến server.");
+		} else {
+			System.out.println("Danh sách người dùng đang kết nối đến server:");
+			for (String username : usernameToHandlers.keySet()) {
+				System.out.println(" - " + username);
+			}
+		}
 	}
 
 	private void closeConnection() {
@@ -267,28 +317,99 @@ class ServerHandler implements Runnable {
 			while ((bytesRead = fileInputStream.read(buffer)) != -1) {
 				dataOut.write(buffer, 0, bytesRead);
 				totalBytesSent += bytesRead;
-
-				log("FILE_PROGRESS", "Đã gửi " + bytesRead + " byte(s), tổng cộng: " + totalBytesSent + " byte(s).");
 			}
 			dataOut.flush();
 			log("FILE_SENT", "File đã được gửi thành công: " + file.getName());
+		} catch (IOException e) {
+			log("ERROR", "Lỗi khi gửi file: " + e.getMessage());
+		}
+	}
+
+	private void sendFileToClient(String filePath, String mes) {
+		File file = new File(filePath);
+		if (!file.exists()) {
+			sendMessage("FILE_NOT_FOUND", "File không tồn tại.");
+			log("FILE_NOT_FOUND", "File không tồn tại: " + filePath);
+			return;
+		}
+
+		JsonObject fileInfoJson = new JsonObject();
+		fileInfoJson.addProperty("fileName", file.getName());
+		fileInfoJson.addProperty("fileSize", file.length());
+		fileInfoJson.addProperty("fileDes", mes);
+		sendMessage("MESSAGE-FILE", fileInfoJson);
+		try (FileInputStream fileInputStream = new FileInputStream(file)) {
+			byte[] buffer = new byte[4096];
+			int bytesRead;
+			long totalBytesSent = 0;
+
+			while ((bytesRead = fileInputStream.read(buffer)) != -1) {
+				dataOut.write(buffer, 0, bytesRead);
+				totalBytesSent += bytesRead;
+			}
+			dataOut.flush();
+
+		} catch (IOException e) {
+			log("ERROR", "Lỗi khi gửi file: " + e.getMessage());
+		}
+	}
+
+	private void loadImageFileToClient(String filePath, String mes) {
+		File file = new File(filePath);
+		if (!file.exists()) {
+			log("FILE_NOT_FOUND", "File không tồn tại: " + filePath);
+			return;
+		}
+
+		JsonObject fileInfoJson = new JsonObject();
+		fileInfoJson.addProperty("fileName", file.getName());
+		fileInfoJson.addProperty("filePath", filePath);
+		fileInfoJson.addProperty("fileSize", file.length());
+		sendMessage("MESSAGE-FILE", fileInfoJson);
+		try (FileInputStream fileInputStream = new FileInputStream(file)) {
+			byte[] buffer = new byte[4096];
+			int bytesRead;
+			long totalBytesSent = 0;
+
+			while ((bytesRead = fileInputStream.read(buffer)) != -1) {
+				dataOut.write(buffer, 0, bytesRead);
+				totalBytesSent += bytesRead;
+			}
+			dataOut.flush();
+
 		} catch (IOException e) {
 			sendMessage("FILE_TRANSFER_ERROR", "Lỗi trong quá trình gửi file.");
 			log("ERROR", "Lỗi khi gửi file: " + e.getMessage());
 		}
 	}
 
-	public static List<String> getConnectedClients() {
-		List<String> connectedClients = new ArrayList<>();
-		System.out.println(clientHandlers.size());
-		for (ServerHandler handler : clientHandlers) {
-			if (handler.getClientSocket() != null && !handler.getClientSocket().isClosed()) {
-				String clientInfo = "Client " + handler.getClientSocket().getInetAddress() + ":"
-						+ handler.getClientSocket().getPort();
-				connectedClients.add(clientInfo);
-			}
+	private void loadFileToClientAsyn(String filePath) {
+		File file = new File(filePath);
+		if (!file.exists()) {
+			log("FILE_NOT_FOUND", "File không tồn tại: " + filePath);
+			return;
 		}
-		return connectedClients;
+
+		JsonObject fileInfoJson = new JsonObject();
+		fileInfoJson.addProperty("fileName", file.getName());
+		fileInfoJson.addProperty("filePath", filePath);
+		fileInfoJson.addProperty("fileSize", file.length());
+		sendMessage("MESSAGE-ASYN-FILE", fileInfoJson);
+		try (FileInputStream fileInputStream = new FileInputStream(file)) {
+			byte[] buffer = new byte[4096];
+			int bytesRead;
+			long totalBytesSent = 0;
+
+			while ((bytesRead = fileInputStream.read(buffer)) != -1) {
+				dataOut.write(buffer, 0, bytesRead);
+				totalBytesSent += bytesRead;
+			}
+			dataOut.flush();
+
+		} catch (IOException e) {
+			sendMessage("FILE_TRANSFER_ERROR", "Lỗi trong quá trình gửi file.");
+			log("ERROR", "Lỗi khi gửi file: " + e.getMessage());
+		}
 	}
 
 	private void notifyUserIsOnline(String username) {
@@ -301,9 +422,108 @@ class ServerHandler implements Runnable {
 		}
 	}
 
+	public void handleGetGroupTwoUser(SendMessageRequest request) {
+		User ent01 = request.getUserSender();
+		User ent02 = request.getUserReceive();
+
+		int id01 = ent01.getId();
+		int id02 = ent02.getId();
+
+		String code = request.getCode();
+		Conversation con = dbConnect.getConversationByCode(code);
+		if (con == null) {
+			con = dbConnect.addConversation(code, code);
+			dbConnect.addParticipant(con.getId(), id01, 0);
+			dbConnect.addParticipant(con.getId(), id02, 0);
+		}
+
+		List<Message> lstMess = dbConnect.getLstMessage(con.getId());
+		request.setConversation(con);
+		sendMessage("RESGROUP2USER", request);
+		sendMessage("LST-MESSAGE", lstMess);
+
+	}
+
+	public String imageToBase64(String filePath) {
+		File file = new File(filePath);
+		if (!file.exists()) {
+			System.out.println("File không tồn tại: " + filePath);
+			return null;
+		}
+
+		try (FileInputStream fileInputStream = new FileInputStream(file)) {
+			byte[] imageBytes = new byte[(int) file.length()];
+			fileInputStream.read(imageBytes);
+			return Base64.getEncoder().encodeToString(imageBytes);
+		} catch (IOException e) {
+			System.out.println("Lỗi khi đọc file: " + e.getMessage());
+			return null;
+		}
+	}
+
 	private void log(String code, String msg) {
 		String timestamp = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new java.util.Date());
 		String logEntry = String.format("[%s] CODE: %s, MESSAGE: %s", timestamp, code, msg);
 		System.out.println(logEntry);
 	}
+
+	private void handleFileTransfer(SendMessageRequest request) {
+		try {
+			String fileInfoJson = dataIn.readUTF();
+			JsonObject fileInfo = JsonParser.parseString(fileInfoJson).getAsJsonObject();
+			String fileName = fileInfo.get("fileName").getAsString();
+			long fileSize = fileInfo.get("fileSize").getAsLong();
+			String serverFilePath = "files\\" + fileName;
+
+			try (FileOutputStream fileOutputStream = new FileOutputStream(serverFilePath)) {
+				byte[] buffer = new byte[4096];
+				int bytesRead;
+				long totalBytesReceived = 0;
+
+				while (totalBytesReceived < fileSize) {
+					bytesRead = dataIn.read(buffer);
+					if (bytesRead == -1)
+						break;
+					fileOutputStream.write(buffer, 0, bytesRead);
+					totalBytesReceived += bytesRead;
+
+					log("FILE_PROGRESS",
+							"Đã nhận " + bytesRead + " byte(s), tổng cộng: " + totalBytesReceived + " byte(s).");
+				}
+				if (isImageFile(fileName)) {
+
+					dbConnect.insertMessage(request.getConversation().getId(), request.getUserSender().getId(), 2,
+							request.getMessageText(), serverFilePath);
+				} else {
+					dbConnect.insertMessage(request.getConversation().getId(), request.getUserSender().getId(), 3,
+							request.getMessageText(), serverFilePath);
+				}
+				if (isOnline(request.getUserReceive().getUsername())) {
+					List<ServerHandler> senderHandlers = usernameToHandlers.get(request.getUserReceive().getUsername());
+
+					for (ServerHandler handler : senderHandlers) {
+						if (handler != this) {
+							handler.sendFileToClient(serverFilePath, request.getMessageText());
+						}
+					}
+				}
+
+			} catch (IOException e) {
+				sendMessage("FILE_TRANSFER_ERROR", "Lỗi trong quá trình nhận file: " + e.getMessage());
+				log("ERROR", "Lỗi khi nhận file: " + e.getMessage());
+			}
+		} catch (IOException e) {
+			sendMessage("FILE_TRANSFER_ERROR", "Lỗi trong quá trình đọc thông tin file: " + e.getMessage());
+			log("ERROR", "Lỗi khi đọc thông tin file: " + e.getMessage());
+		}
+	}
+
+	private boolean isImageFile(String fileName) {
+		String lowerCaseFileName = fileName.toLowerCase();
+		return lowerCaseFileName.endsWith(".jpg") || lowerCaseFileName.endsWith(".jpeg")
+				|| lowerCaseFileName.endsWith(".png") || lowerCaseFileName.endsWith(".gif")
+				|| lowerCaseFileName.endsWith(".bmp") || lowerCaseFileName.endsWith(".webp")
+				|| lowerCaseFileName.endsWith(".svg");
+	}
+
 }
