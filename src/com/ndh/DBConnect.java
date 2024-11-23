@@ -79,7 +79,7 @@ public class DBConnect {
 				String userName = resultSet.getString("username");
 				String info01 = resultSet.getString("info01");
 				String avatar = resultSet.getString("info03");
-				User user = new User(id, userName, null, info01, null, avatar);
+				User user = new User(id, userName, null, info01, null,avatar, avatar);
 				userJson = gson.toJson(user);
 				log("USER_INFO_FETCH", "Thông tin người dùng cho " + username + " đã được lấy thành công.");
 			}
@@ -120,6 +120,7 @@ public class DBConnect {
 					user.setId(rs.getInt("id"));
 					user.setUsername(rs.getString("username"));
 					user.setInfo01(rs.getString("info01"));
+					user.setInfo03(rs.getString("info03"));
 					user.setAvatar(rs.getString("info03"));
 
 					lst.add(user);
@@ -145,6 +146,7 @@ public class DBConnect {
 					user.setId(rs.getInt("id"));
 					user.setUsername(rs.getString("username"));
 					user.setInfo01(rs.getString("info01"));
+					user.setInfo03(rs.getString("info03"));
 					user.setAvatar(rs.getString("info03"));
 
 					lst.add(user);
@@ -267,7 +269,7 @@ public class DBConnect {
 				Timestamp createdAt = rs.getTimestamp("created_at");
 				Timestamp updatedAt = rs.getTimestamp("updated_at");
 
-				conversation = new Conversation(conversationId, title, conversationCode, createdAt, updatedAt);
+				conversation = new Conversation(conversationId, title, conversationCode, null, null);
 				log("FETCH_CONVERSATION_BY_CODE", "Lấy cuộc hội thoại thành công với mã: " + code);
 			} else {
 				log("FETCH_CONVERSATION_NOT_FOUND", "Không tìm thấy cuộc hội thoại với mã: " + code);
@@ -314,8 +316,8 @@ public class DBConnect {
 				Timestamp createdAt = rs.getTimestamp("created_at");
 				Timestamp updatedAt = rs.getTimestamp("updated_at");
 
-				Message message = new Message(id, conversationId, senderId, type, messageContent, info01, createdAt,
-						updatedAt);
+				Message message = new Message(id, conversationId, senderId, type, messageContent, info01, null,
+						null);
 				lst.add(message);
 			}
 			log("FETCH_MESSAGES_BY_CONVERSATION_ID",

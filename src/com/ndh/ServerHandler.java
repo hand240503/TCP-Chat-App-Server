@@ -472,6 +472,34 @@ class ServerHandler implements Runnable {
 			dbConnect.addParticipant(con.getId(), id01, 0);
 			dbConnect.addParticipant(con.getId(), id02, 0);
 		}
+		
+		File file = new File(ent02.getInfo03());
+		if (!file.exists()) {
+			sendMessage("FILE_NOT_FOUND", "File không tồn tại.");
+			log("FILE_NOT_FOUND", "File không tồn tại: " + ent02.getInfo03());
+			return;
+		}
+
+		JsonObject fileInfoJson = new JsonObject();
+		fileInfoJson.addProperty("fileName", file.getName());
+		fileInfoJson.addProperty("fileSize", file.length());
+		sendMessage("AVATAR-GROUP", fileInfoJson);
+		try (FileInputStream fileInputStream = new FileInputStream(file)) {
+			byte[] buffer = new byte[4096];
+			int bytesRead;
+			long totalBytesSent = 0;
+
+			while ((bytesRead = fileInputStream.read(buffer)) != -1) {
+				dataOut.write(buffer, 0, bytesRead);
+				totalBytesSent += bytesRead;
+			}
+			dataOut.flush();
+
+		} catch (IOException e) {
+			log("ERROR", "Lỗi khi gửi file: " + e.getMessage());
+		}
+		
+		
 
 		List<Message> lstMess = dbConnect.getLstMessage(con.getId());
 		request.setConversation(con);

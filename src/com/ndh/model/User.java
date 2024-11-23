@@ -6,18 +6,21 @@ public class User {
 	private String password;
 	private String info01;
 	private String info02;
+	private String info03;
 	private String avatar;
 	private boolean isOnline;
 
 	// Constructor
-	public User(int id, String username, String password, String info01, String info02, String avatar) {
+	public User(int id, String username, String password, String info01, String info02,String info03, String avatar) {
 		super();
 		this.id = id;
 		this.username = username;
 		this.password = password;
 		this.info01 = info01;
 		this.info02 = info02;
+		this.info03 = info03;
 		this.avatar = avatar;
+
 	}
 
 	public User() {
@@ -65,6 +68,14 @@ public class User {
 
 	public void setInfo02(String info02) {
 		this.info02 = info02;
+	}
+	
+	public String getInfo03() {
+		return info03;
+	}
+
+	public void setInfo03(String info03) {
+		this.info03 = info03;
 	}
 
 	public String getAvatar() {
