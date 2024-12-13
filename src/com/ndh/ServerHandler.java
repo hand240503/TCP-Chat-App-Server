@@ -153,12 +153,17 @@ class ServerHandler implements Runnable {
 					loadFileToClientAsyn(messageAsyn.getInfo01());
 					break;
 				case "GET-FILE":
-				    String dataJsonString = json.get("data").getAsString();
-				    JsonObject dataJson = JsonParser.parseString(dataJsonString).getAsJsonObject();
+					String dataJsonString = json.get("data").getAsString();
+					JsonObject dataJson = JsonParser.parseString(dataJsonString).getAsJsonObject();
 
-				    String filename = dataJson.get("filename").getAsString();
+					String filename = dataJson.get("filename").getAsString();
 					String filePath = "files\\" + filename;
 					sendFileToClient(filePath);
+					break;
+				case "MES-AUDIO":
+					JsonObject mesAudio = json.getAsJsonObject("data");
+					SendMessageRequest mesAudioReq = gson.fromJson(mesAudio, SendMessageRequest.class);
+					handleChatAudio(mesAudioReq);
 					break;
 				default:
 					sendMessage("INVALID_COMMAND", "Lệnh không hợp lệ.");
@@ -167,6 +172,25 @@ class ServerHandler implements Runnable {
 			} catch (Exception e) {
 				sendMessage("INVALID_JSON", "Định dạng JSON không hợp lệ.");
 				log("ERROR", "Lỗi xử lý lệnh: " + e.getMessage());
+			}
+		}
+	}
+
+	private void handleChatAudio(SendMessageRequest msg) {
+		User userSender = msg.getUserSender();
+		User userReceive = msg.getUserReceive();
+		if (isOnline(userReceive.getUsername())) {
+			List<ServerHandler> senderHandlers = usernameToHandlers.get(userSender.getUsername());
+
+			for (ServerHandler handler : senderHandlers) {
+				handler.sendMessage("MES-AUDIO-ON", msg);
+			}
+		}
+
+		if (isOnline(userReceive.getUsername())) {
+			List<ServerHandler> receiverHandlers = usernameToHandlers.get(userReceive.getUsername());
+			for (ServerHandler handler : receiverHandlers) {
+				handler.sendMessage("MES-AUDIO-ON", msg);
 			}
 		}
 	}
@@ -472,7 +496,7 @@ class ServerHandler implements Runnable {
 			dbConnect.addParticipant(con.getId(), id01, 0);
 			dbConnect.addParticipant(con.getId(), id02, 0);
 		}
-		
+
 		File file = new File(ent02.getInfo03());
 		if (!file.exists()) {
 			sendMessage("FILE_NOT_FOUND", "File không tồn tại.");
@@ -498,8 +522,6 @@ class ServerHandler implements Runnable {
 		} catch (IOException e) {
 			log("ERROR", "Lỗi khi gửi file: " + e.getMessage());
 		}
-		
-		
 
 		List<Message> lstMess = dbConnect.getLstMessage(con.getId());
 		request.setConversation(con);
