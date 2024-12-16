@@ -165,6 +165,11 @@ class ServerHandler implements Runnable {
 					SendMessageRequest mesAudioReq = gson.fromJson(mesAudio, SendMessageRequest.class);
 					handleChatAudio(mesAudioReq);
 					break;
+				case "MES-AUDIO-END":
+					JsonObject mesAudioEnd = json.getAsJsonObject("data");
+					SendMessageRequest mesAudioReqEnd = gson.fromJson(mesAudioEnd, SendMessageRequest.class);
+					handleEndChatAudio(mesAudioReqEnd);
+					break;
 				default:
 					sendMessage("INVALID_COMMAND", "Lệnh không hợp lệ.");
 					break;
@@ -180,17 +185,26 @@ class ServerHandler implements Runnable {
 		User userSender = msg.getUserSender();
 		User userReceive = msg.getUserReceive();
 		if (isOnline(userReceive.getUsername())) {
-			List<ServerHandler> senderHandlers = usernameToHandlers.get(userSender.getUsername());
-
+			List<ServerHandler> senderHandlers = usernameToHandlers.get(userReceive.getUsername());
 			for (ServerHandler handler : senderHandlers) {
 				handler.sendMessage("MES-AUDIO-ON", msg);
 			}
 		}
+	}
 
+	private void handleEndChatAudio(SendMessageRequest msg) {
+		User userSender = msg.getUserSender();
+		User userReceive = msg.getUserReceive();
 		if (isOnline(userReceive.getUsername())) {
-			List<ServerHandler> receiverHandlers = usernameToHandlers.get(userReceive.getUsername());
-			for (ServerHandler handler : receiverHandlers) {
-				handler.sendMessage("MES-AUDIO-ON", msg);
+			List<ServerHandler> senderHandlers = usernameToHandlers.get(userReceive.getUsername());
+			for (ServerHandler handler : senderHandlers) {
+				handler.sendMessage("MES-AUDIO-END", msg);
+			}
+		}
+		if (isOnline(userSender.getUsername())) {
+			List<ServerHandler> senderHandlers = usernameToHandlers.get(userSender.getUsername());
+			for (ServerHandler handler : senderHandlers) {
+				handler.sendMessage("MES-AUDIO-END", msg);
 			}
 		}
 	}

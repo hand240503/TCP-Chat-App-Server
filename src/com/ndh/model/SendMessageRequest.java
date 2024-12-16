@@ -6,6 +6,8 @@ public class SendMessageRequest {
 	private String messageText;
 	private String code;
 	private Conversation conversation;
+	private int portSender;
+	private int portReceiver;
 
 	public SendMessageRequest() {
 	}
@@ -17,6 +19,17 @@ public class SendMessageRequest {
 		this.messageText = messageText;
 		this.code = code;
 		this.conversation = conversation;
+	}
+
+	public SendMessageRequest(User userSender, User userReceive, String messageText, String code,
+			Conversation conversation, int portSender, int portReceiver) {
+		this.userSender = userSender;
+		this.userReceive = userReceive;
+		this.messageText = messageText;
+		this.code = code;
+		this.conversation = conversation;
+		this.portSender = portSender;
+		this.portReceiver = portReceiver;
 	}
 
 	public User getUserSender() {
@@ -57,6 +70,22 @@ public class SendMessageRequest {
 
 	public void setConversation(Conversation conversation) {
 		this.conversation = conversation;
+	}
+
+	public int getPortSender() {
+		return portSender;
+	}
+
+	public void setPortSender(int portSender) {
+		this.portSender = portSender;
+	}
+
+	public int getPortReceiver() {
+		return portReceiver;
+	}
+
+	public void setPortReceiver(int portReceiver) {
+		this.portReceiver = portReceiver;
 	}
 
 }
