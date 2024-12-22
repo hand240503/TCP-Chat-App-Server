@@ -100,6 +100,17 @@ class ServerHandler implements Runnable {
 				case "LOGIN":
 					handleLogin(json);
 					break;
+				case "LST-USER":
+					List<User> lst = dbConnect.getListUserAsList(currentUser.getId());
+					for (User u : lst) {
+						u.setOnline(isOnline(u.getUsername()));
+					}
+					String lstJson = gson.toJson(lst);
+					sendMessage("LST_USER_INFO", lstJson);
+					for (User u : lst) {
+						sendAvatarToClient(u.getAvatar(), u.getId());
+					}
+					break;
 				case "MESSAGE":
 					JsonObject dataObject = json.getAsJsonObject("data");
 					SendMessageRequest msg = gson.fromJson(dataObject, SendMessageRequest.class);
@@ -192,6 +203,12 @@ class ServerHandler implements Runnable {
 			List<ServerHandler> senderHandlers = usernameToHandlers.get(userReceive.getUsername());
 			for (ServerHandler handler : senderHandlers) {
 				handler.sendMessage("MES-AUDIO-ON", msg);
+			}
+		}else {
+			User userSender = msg.getUserSender();
+			List<ServerHandler> senderHandlers = usernameToHandlers.get(userSender.getUsername());
+			for (ServerHandler handler : senderHandlers) {
+				handler.sendMessage("MES-AUDIO-NOT-ONLINE", msg);
 			}
 		}
 	}
@@ -326,6 +343,8 @@ class ServerHandler implements Runnable {
 			}
 
 			synchronized (usernameToHandlers) {
+				if(currentUser == null)
+					return;
 				if (currentUser.getUsername() != null && usernameToHandlers.containsKey(currentUser.getUsername())) {
 					List<ServerHandler> handlers = usernameToHandlers.get(currentUser.getUsername());
 					handlers.remove(this);

@@ -8,7 +8,7 @@ public class SendMessageRequest {
 	private Conversation conversation;
 	private int portSender;
 	private int portReceiver;
-
+	private String ip;
 	public SendMessageRequest() {
 	}
 
@@ -22,7 +22,7 @@ public class SendMessageRequest {
 	}
 
 	public SendMessageRequest(User userSender, User userReceive, String messageText, String code,
-			Conversation conversation, int portSender, int portReceiver) {
+			Conversation conversation, int portSender, int portReceiver,String ip) {
 		this.userSender = userSender;
 		this.userReceive = userReceive;
 		this.messageText = messageText;
@@ -30,6 +30,7 @@ public class SendMessageRequest {
 		this.conversation = conversation;
 		this.portSender = portSender;
 		this.portReceiver = portReceiver;
+		this.ip = ip;
 	}
 
 	public User getUserSender() {
@@ -88,4 +89,13 @@ public class SendMessageRequest {
 		this.portReceiver = portReceiver;
 	}
 
+	public String getIp() {
+		return ip;
+	}
+
+	public void setIp(String ip) {
+		this.ip = ip;
+	}
+
+	
 }
